@@ -228,7 +228,8 @@ export function NativeChatCrossVendorFrame({
     open: open && control !== null,
     worktreeId: control?.worktreeId ?? null,
     target: control?.target ?? LOCAL_TARGET,
-    currentAgent: control?.currentAgent ?? ''
+    currentAgent: control?.currentAgent ?? '',
+    botOnly: control?.botOnly ?? false
   })
   const [pick, setPick] = useState<TuiAgent | null>(null)
   if (!control) {
@@ -239,7 +240,7 @@ export function NativeChatCrossVendorFrame({
   const other = shown && shown !== control.currentAgent ? shown : null
   return (
     <div className="flex min-h-0 min-w-0">
-      {vendors.length > 1 ? (
+      {vendors.some((agent) => agent !== control.currentAgent) ? (
         <NativeChatVendorRail
           vendors={vendors}
           selected={shown ?? control.currentAgent}

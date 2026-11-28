@@ -1,7 +1,7 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import {
   createCrossVendorHandoffSeeds,
   withCrossVendorHandoffTurnContext
@@ -48,9 +48,10 @@ it('rides once ahead of the next turn, survives a restart, and is gone once the 
   expect((await context.plan('session-0001', message))?.text).toContain('EARLIER CONVERSATION')
   plan?.given({ instructionsRecorded: false })
   expect(innerGiven).toBe(1)
-  await new Promise((resolve) => setTimeout(resolve, 10))
   expect((await context.plan('session-0001', message))?.text).toBe('BOT RULES')
-  expect(await createCrossVendorHandoffSeeds(directory).read('session-0001')).toBeNull()
+  await vi.waitFor(async () =>
+    expect(await createCrossVendorHandoffSeeds(directory).read('session-0001')).toBeNull()
+  )
   expect(await context.plan('session-0002', message)).toMatchObject({ text: 'BOT RULES' })
 })
 
@@ -58,4 +59,19 @@ it('refuses session ids that could name a file outside its folder', async () => 
   const seeds = createCrossVendorHandoffSeeds(await stateDirectory())
   await expect(seeds.put('../../escape', 'x')).rejects.toThrow('invalid session id')
   expect(await seeds.read('..\\..\\escape')).toBeNull()
+})
+
+it('refuses to plan a turn when saved conversation context is temporarily unreadable', async () => {
+  const directory = await stateDirectory()
+  const sessionId = 'session-0001'
+  const path = join(directory, 'cross-vendor-handoffs', `${sessionId}.txt`)
+  await mkdir(path, { recursive: true })
+  const context = withCrossVendorHandoffTurnContext(
+    undefined,
+    createCrossVendorHandoffSeeds(directory)
+  )
+  await expect(context.plan(sessionId, message)).rejects.toThrow()
+  await rm(path, { recursive: true })
+  await createCrossVendorHandoffSeeds(directory).put(sessionId, 'Restored conversation')
+  expect((await context.plan(sessionId, message))?.text).toBe('Restored conversation')
 })
